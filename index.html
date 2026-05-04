@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Firebase Blooket Bot Joiner</title>
+  <style>
+    body { font-family: sans-serif; margin: 40px; }
+    label { display: block; margin: 10px 0 3px; }
+    input, select, button { margin-bottom: 15px; padding: 6px; width: 250px; }
+    .message { margin-top: 20px; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h2>Join a Game as a Blooket Bot</h2>
+  <form id="joinForm" autocomplete="off">
+    <label for="gameId">Game ID:</label>
+    <input type="text" id="gameId" required />
+    <label for="botName">Your Name:</label>
+    <input type="text" id="botName" required />
+    <label for="blookSelect">Choose Your Blook:</label>
+    <select id="blookSelect" required></select>
+    <br>
+    <button type="submit">Join Game</button>
+  </form>
+  <div class="message" id="statusMsg"></div>
+
+  <!-- Firebase v9 CDN -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <script>
+    // Blook list
+    const fblooks = [
+      "Chick","Chicken","Cow","Goat","Horse","Pig","Sheep",
+      "Duck","Alpaca","Dog","Cat","Rabbit","Goldfish","Hamster",
+      "Turtle","Kitten","Puppy","Bear","Moose","Fox","Raccoon",
+      "Squirrel","Owl","Hedgehog","Deer","Wolf","Beaver",
+      "Tiger","Orangutan","Cockatoo","Parrot","Anaconda",
+      "Jaguar","Macaw","Toucan","Panther","Capuchin"
+    ];
+    // Populate select
+    const sel = document.getElementById('blookSelect');
+    fblooks.forEach(l => {
+      const opt = document.createElement('option');
+      opt.value = opt.textContent = l;
+      sel.appendChild(opt);
+    });
+
+    // Show any messages at the bottom
+    function showMsg(text, color = '#222') {
+      const d = document.getElementById('statusMsg');
+      d.textContent = text;
+      d.style.color = color;
+    }
+
+    // Main join logic
+    async function joinGame(gameId, botName, chosenBlook) {
+      showMsg('Joining game...', '#444');
+      try {
+        // Step 1: Request join token/Firebase info from your server
+        const joinRes = await fetch('/join', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: gameId, name: botName }),
+        });
+        const body = await joinRes.json();
+
+        if (!body.success) {
+          showMsg('Failed: ' + (body.msg || 'Unknown error'), 'red');
+          return;
+        }
+
+        // Step 2: Initialize Firebase
+        const firebaseConfig = {
+          apiKey: "AIzaSyCA-cTOnX19f6LFnDVVsHXya3k6ByP_MnU",
+          authDomain: "blooket-2020.firebaseapp.com",
+          projectId: "blooket-2020",
+          storageBucket: "blooket-2020.appspot.com",
+          messagingSenderId: "741533559105",
+          appId: "1:741533559105:web:b8cbb10e6123f2913519c0",
+          measurementId: "G-S3H5NGN10Z",
+          databaseURL: body.fbShardURL,
+        };
+        // Use a unique app name to avoid collision
+        const appName = "botApp_" + Date.now();
+        const app = firebase.initializeApp(firebaseConfig, appName);
+
+        // Step 3: Auth with custom token
+        const auth = firebase.auth(app);
+        await auth.signInWithCustomToken(body.fbToken);
+
+        // Step 4: Set blooket data
+        const db = firebase.database(app);
+        await db.ref(`${gameId}/c/${botName}`).set({ b: chosenBlook });
+
+        showMsg(`Joined as ${botName} with blook "${chosenBlook}". You're in!`, 'green');
+      } catch (e) {
+        showMsg('Error: ' + e.message, 'red');
+      }
+    }
+
+    // Form handler
+    document.getElementById('joinForm').onsubmit = function(e) {
+      e.preventDefault();
+      const gid = document.getElementById('gameId').value.trim();
+      const name = document.getElementById('botName').value.trim();
+      const blook = document.getElementById('blookSelect').value;
+      if (!gid || !name || !blook) {
+        showMsg('Fill all fields', 'red');
+        return;
+      }
+      joinGame(gid, name, blook);
+    }
+  </script>
+</body>
+</html>
